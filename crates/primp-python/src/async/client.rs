@@ -44,6 +44,9 @@ pub struct AsyncClient {
     #[pyo3(get, set)]
     base_url: Option<String>,
     cookies: Option<IndexMapSSR>,
+    // Stored to correctly restore redirect policy after per-request overrides
+    _follow_redirects: bool,
+    _max_redirects: usize,
 }
 
 #[pymethods]
@@ -115,6 +118,8 @@ impl AsyncClient {
             impersonate_os,
             base_url,
             cookies,
+            _follow_redirects: follow_redirects.unwrap_or(true),
+            _max_redirects: max_redirects.unwrap_or(20),
         })
     }
 
@@ -167,13 +172,15 @@ impl AsyncClient {
     fn get_cookies(&self, url: &str) -> PrimpResult<IndexMapSSR> {
         let url = Url::parse(url).map_err(|e| PrimpErrorEnum::InvalidURL(e.to_string()))?;
         let client = self.client.read().expect("client lock was poisoned");
-        let cookie = client
-            .get_cookies(&url)
-            .ok_or_else(|| PrimpErrorEnum::Custom("Failed to get cookies".to_string()))?;
-        let cookie_str = cookie
-            .to_str()
-            .map_err(|e| PrimpErrorEnum::Custom(e.to_string()))?;
-        Ok(parse_cookies_from_header(cookie_str))
+        match client.get_cookies(&url) {
+            None => Ok(IndexMapSSR::default()),
+            Some(cookie) => {
+                let cookie_str = cookie
+                    .to_str()
+                    .map_err(|e| PrimpErrorEnum::Custom(e.to_string()))?;
+                Ok(parse_cookies_from_header(cookie_str))
+            }
+        }
     }
 
     #[pyo3(signature = (url, cookies))]
@@ -347,10 +354,15 @@ impl AsyncClient {
             Ok::<(PrimpResponse, String, u16), PrimpErrorEnum>((resp, url, status_code))
         };
 
-        // Restore redirect policy if it was changed
+        // Restore redirect policy to the client's original setting
         if follow_redirects.is_some() {
             let mut client_guard = self.client.write().expect("client lock was poisoned");
-            client_guard.set_redirect_policy(::primp::redirect::Policy::limited(20));
+            let policy = if self._follow_redirects {
+                ::primp::redirect::Policy::limited(self._max_redirects)
+            } else {
+                ::primp::redirect::Policy::none()
+            };
+            client_guard.set_redirect_policy(policy);
         }
 
         // Convert Rust future to Python awaitable
