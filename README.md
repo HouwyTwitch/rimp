@@ -8,7 +8,7 @@
 
 ```toml
 [dependencies]
-primp = "1.2.3"
+rimp = "1.2.3"
 ```
 
 ```rust
@@ -28,7 +28,7 @@ async fn main() -> Result<(), primp::Error> {
 ### 🐍 Python → [/crates/primp-python](./crates/primp-python)
 
 ```bash
-pip install primp
+pip install rimp
 ```
 
 ```python

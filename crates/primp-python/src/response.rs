@@ -105,12 +105,12 @@ impl Response {
         }
     }
 
-    async fn next_chunk(&self) -> Result<Option<Vec<u8>>, PyErr> {
+    async fn next_chunk(&self) -> Result<Option<Bytes>, PyErr> {
         let resp = Arc::clone(&self.resp);
         let mut resp_guard = resp.lock().await;
         match resp_guard.as_mut() {
             Some(r) => match r.chunk().await {
-                Ok(Some(data)) => Ok(Some(data.to_vec())),
+                Ok(Some(data)) => Ok(Some(data)),
                 Ok(None) => Ok(None),
                 Err(e) => Err(convert_reqwest_error(e)),
             },
@@ -406,7 +406,7 @@ impl BytesIterator {
                 let mut resp_guard = resp.lock().await;
                 match resp_guard.as_mut() {
                     Some(r) => match r.chunk().await {
-                        Ok(Some(data)) => Ok::<Option<Vec<u8>>, PyErr>(Some(data.to_vec())),
+                        Ok(Some(data)) => Ok::<Option<Bytes>, PyErr>(Some(data)),
                         Ok(None) => Ok(None),
                         Err(e) => Err(convert_reqwest_error(e)),
                     },
@@ -487,7 +487,7 @@ impl TextIterator {
                 let mut resp_guard = resp.lock().await;
                 match resp_guard.as_mut() {
                     Some(r) => match r.chunk().await {
-                        Ok(Some(data)) => Ok::<Option<Vec<u8>>, PyErr>(Some(data.to_vec())),
+                        Ok(Some(data)) => Ok::<Option<Bytes>, PyErr>(Some(data)),
                         Ok(None) => Ok(None),
                         Err(e) => Err(convert_reqwest_error(e)),
                     },
@@ -578,7 +578,7 @@ impl LinesIterator {
                     let mut resp_guard = resp.lock().await;
                     match resp_guard.as_mut() {
                         Some(r) => match r.chunk().await {
-                            Ok(Some(data)) => Ok::<Option<Vec<u8>>, PyErr>(Some(data.to_vec())),
+                            Ok(Some(data)) => Ok::<Option<Bytes>, PyErr>(Some(data)),
                             Ok(None) => Ok(None),
                             Err(e) => Err(convert_reqwest_error(e)),
                         },

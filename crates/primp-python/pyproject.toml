@@ -10,7 +10,7 @@ requires-python = ">=3.10"
 license = {text = "MIT License"}
 keywords = ["python", "request", "impersonate"]
 authors = [
-  {name = "deedy5"}
+  {name = "houwytwitch"}
 ]
 classifiers = [
     "Programming Language :: Rust",
@@ -31,7 +31,7 @@ dynamic = ["version"]
 dependencies = []
 
 [project.urls]
-repository = "https://github.com/deedy5/primp"
+repository = "https://github.com/houwytwitch/rimp"
 
 [project.optional-dependencies]
 dev = [
