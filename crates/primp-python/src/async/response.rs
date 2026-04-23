@@ -178,14 +178,16 @@ impl AsyncResponse {
 
         let resp = Arc::clone(&self.resp);
         let runtime = crate::get_runtime(py);
-        let headers: IndexMapSSR = runtime.block_on(async {
-            let resp_guard = resp.lock().await;
-            match resp_guard.as_ref() {
-                Some(r) => Ok(r.headers().to_indexmap()),
-                None => Err(BodyError::new_err(
-                    "Response body already consumed or moved",
-                )),
-            }
+        let headers: IndexMapSSR = py.detach(|| {
+            runtime.block_on(async {
+                let resp_guard = resp.lock().await;
+                match resp_guard.as_ref() {
+                    Some(r) => Ok(r.headers().to_indexmap()),
+                    None => Err(BodyError::new_err(
+                        "Response body already consumed or moved",
+                    )),
+                }
+            })
         })?;
 
         let py_dict = headers.clone().into_pyobject(py)?;
@@ -202,14 +204,16 @@ impl AsyncResponse {
 
         let resp = Arc::clone(&self.resp);
         let runtime = crate::get_runtime(py);
-        let cookies: IndexMapSSR = runtime.block_on(async {
-            let resp_guard = resp.lock().await;
-            match resp_guard.as_ref() {
-                Some(r) => Ok(crate::extract_cookies_to_indexmap(r.headers())),
-                None => Err(BodyError::new_err(
-                    "Response body already consumed or moved",
-                )),
-            }
+        let cookies: IndexMapSSR = py.detach(|| {
+            runtime.block_on(async {
+                let resp_guard = resp.lock().await;
+                match resp_guard.as_ref() {
+                    Some(r) => Ok(crate::extract_cookies_to_indexmap(r.headers())),
+                    None => Err(BodyError::new_err(
+                        "Response body already consumed or moved",
+                    )),
+                }
+            })
         })?;
 
         let py_dict = cookies.clone().into_pyobject(py)?;
@@ -306,7 +310,7 @@ impl AsyncResponse {
                 },
                 None => Bytes::new(),
             };
-            Ok::<Vec<u8>, PyErr>(bytes.to_vec())
+            Python::with_gil(|py| Ok::<Py<PyBytes>, PyErr>(PyBytes::new(py, &bytes).unbind()))
         };
         future_into_py(py, future)
     }
@@ -349,7 +353,7 @@ impl AsyncResponse {
         use pyo3_async_runtimes::tokio::future_into_py;
 
         let resp = Arc::clone(&self.resp);
-        let bytes_future = future_into_py(py, async move {
+        let future = async move {
             let mut resp_guard = resp.lock().await;
             let bytes = match resp_guard.as_mut() {
                 Some(r) => match collect_body_bytes(r).await {
@@ -358,18 +362,21 @@ impl AsyncResponse {
                 },
                 None => Bytes::new(),
             };
-            Ok::<Vec<u8>, PyErr>(bytes.to_vec())
-        })?;
-
-        let json_code = c"
-import json as _json
-async def _parse_json(coro):
-    data = await coro
-    return _json.loads(bytes(data))
-_parse_json
-";
-        let parse_fn = py.eval(json_code, None, None)?.call0()?;
-        parse_fn.call1((bytes_future,))
+            match from_slice::<serde_json::Value>(&bytes) {
+                Ok(json_value) => Python::with_gil(|py| {
+                    Ok::<Py<PyAny>, PyErr>(pythonize(py, &json_value)?.unbind())
+                }),
+                Err(e) => Python::with_gil(|py| {
+                    let json_module = py.import("json")?;
+                    let error_type = json_module.getattr("JSONDecodeError")?;
+                    let doc = String::from_utf8_lossy(&bytes).to_string();
+                    let msg = e.to_string();
+                    let pos = e.line().saturating_sub(1);
+                    Err(PyErr::from_value(error_type.call1((&msg, &doc, pos))?))
+                }),
+            }
+        };
+        future_into_py(py, future)
     }
 
     #[pyo3(signature = (chunk_size=None))]
@@ -404,7 +411,9 @@ _parse_json
             let mut resp_guard = resp.lock().await;
             match resp_guard.as_mut() {
                 Some(r) => match r.chunk().await {
-                    Ok(Some(data)) => Ok::<Option<Vec<u8>>, PyErr>(Some(data.to_vec())),
+                    Ok(Some(data)) => Python::with_gil(|py| {
+                        Ok::<Option<Py<PyBytes>>, PyErr>(Some(PyBytes::new(py, &data).unbind()))
+                    }),
                     Ok(None) => Ok(None),
                     Err(e) => Err(convert_reqwest_error(e)),
                 },
