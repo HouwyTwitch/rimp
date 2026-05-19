@@ -19,8 +19,10 @@ include = [
 ]
 
 [package.metadata.docs.rs]
-all-features = true
+# all-features excluded: http3 incompatible with quinn from crates.io (uses upstream rustls)
+features = ["impersonate", "socks", "hickory-dns", "rustls-no-provider"]
 rustdoc-args = ["--cfg", "docsrs", "--cfg", "reqwest_unstable"]
+rustc-args = ["--cfg", "reqwest_unstable"]
 targets = ["x86_64-unknown-linux-gnu", "wasm32-unknown-unknown"]
 
 [features]

@@ -681,7 +681,7 @@ impl ClientBuilder {
                 TlsBackend::BuiltRustls(conn) => {
                     #[cfg(feature = "http3")]
                     {
-                        let mut h3_tls = conn.clone();
+                        let mut h3_tls = (**conn).clone();
                         h3_tls.alpn_protocols = vec!["h3".into()];
 
                         h3_connector = build_h3_connector(
