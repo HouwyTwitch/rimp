@@ -1,6 +1,6 @@
 [package]
 name = "primp-hyper-util"
-version = "0.1.21"  # based on upstream v0.1.20, cherry-picks through 2026-05-23
+version = "0.1.22"  # based on upstream v0.1.20, cherry-picks through 2026-05-23
 license = "MIT"
 authors = ["deedy5", "Sean McArthur <sean@seanmonstar.com>"]
 edition = "2021"
