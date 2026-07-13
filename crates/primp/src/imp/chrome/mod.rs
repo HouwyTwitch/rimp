@@ -121,6 +121,14 @@ fn build_user_agent(chrome: Impersonate, os: crate::imp::ImpersonateOS) -> &'sta
             crate::imp::ImpersonateOS::IOS => "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/148.0.0.0 Mobile/15E148 Safari/604.1",
             _ => unreachable!(),
         },
+        Impersonate::ChromeV150 => match os {
+            crate::imp::ImpersonateOS::Windows => "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36",
+            crate::imp::ImpersonateOS::MacOS => "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36",
+            crate::imp::ImpersonateOS::Linux => "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36",
+            crate::imp::ImpersonateOS::Android => "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36",
+            crate::imp::ImpersonateOS::IOS => "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/150.0.0.0 Mobile/15E148 Safari/604.1",
+            _ => unreachable!(),
+        },
         _ => unreachable!(),
     }
 }
@@ -143,6 +151,9 @@ fn build_sec_ch_ua(chrome: Impersonate, _os: crate::imp::ImpersonateOS) -> &'sta
         Impersonate::ChromeV148 => {
             r#""Chromium";v="148", "Google Chrome";v="148", "Not/A)Brand";v="99""#
         }
+        Impersonate::ChromeV150 => {
+            r#""Google Chrome";v="150", "Chromium";v="150", "Not?A_Brand";v="24""#
+        }
         _ => unreachable!(),
     }
 }
@@ -150,8 +161,8 @@ fn build_sec_ch_ua(chrome: Impersonate, _os: crate::imp::ImpersonateOS) -> &'sta
 /// Builds HTTP/2 settings for a Chrome version.
 #[cfg(feature = "http2")]
 fn build_http2_settings(chrome: Impersonate) -> crate::imp::Http2Data {
-    // Chrome 148 uses different header order (sec-ch-ua after sec-fetch-*)
-    let headers_order = if matches!(chrome, Impersonate::ChromeV148) {
+    // Chrome 148+ uses a different header order (sec-ch-ua after sec-fetch-*)
+    let headers_order = if matches!(chrome, Impersonate::ChromeV148 | Impersonate::ChromeV150) {
         Some(crate::imp::header_order_upgrade_first_sec_chua_last().clone())
     } else {
         Some(crate::imp::header_order_sec_chua_first().clone())
@@ -197,6 +208,11 @@ fn chrome_emulator(chrome: Impersonate) -> Arc<BrowserEmulator> {
             EMU.get_or_init(|| Arc::new(new_chrome_emulator(148)))
                 .clone()
         }
+        Impersonate::ChromeV150 => {
+            static EMU: OnceLock<Arc<BrowserEmulator>> = OnceLock::new();
+            EMU.get_or_init(|| Arc::new(new_chrome_emulator(150)))
+                .clone()
+        }
         _ => unreachable!(),
     }
 }
@@ -204,7 +220,15 @@ fn chrome_emulator(chrome: Impersonate) -> Arc<BrowserEmulator> {
 fn new_chrome_emulator(major: u16) -> BrowserEmulator {
     let mut emulator = BrowserEmulator::new(BrowserType::Chrome, BrowserVersion::new(major, 0, 0));
     emulator.cipher_suites = Some(emulation::cipher_suites::CHROME.to_vec());
-    emulator.signature_algorithms = Some(emulation::signature_algorithms::CHROME.to_vec());
+    // Chrome 150 added the ML-DSA post-quantum signature algorithms, changing the
+    // JA4 hash to t13d1514h2_8daaf6152771_d85c08a3ce5e. Earlier versions keep the
+    // classic 8-algorithm list.
+    let signature_algorithms = if major >= 150 {
+        emulation::signature_algorithms::CHROME_150
+    } else {
+        emulation::signature_algorithms::CHROME
+    };
+    emulator.signature_algorithms = Some(signature_algorithms.to_vec());
     emulator.named_groups = Some(emulation::named_groups::CHROME.to_vec());
     emulator.extension_order_seed = Some(emulation::extension_order::CHROME);
     emulator
@@ -294,5 +318,37 @@ mod tests {
         assert_eq!(json.ja4, CHROME146_JA4);
         assert_eq!(json.akamai_hash, CHROME146_AKAMAI_HASH);
         assert_eq!(json.akamai_text, CHROME146_AKAMAI_TEXT);
+    }
+
+    const CHROME150_USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36";
+    // Chrome 150 adds the ML-DSA signature algorithms, so only the JA4_c extension
+    // hash changes versus Chrome 146; the ciphers and HTTP/2 fingerprint are unchanged.
+    // browserleaks counts SNI + ALPN in the extension total (t13d1516h2); tools that
+    // omit them (e.g. tls.peet.ws) report the same hashes as t13d1514h2.
+    const CHROME150_JA4: &str = "t13d1516h2_8daaf6152771_d85c08a3ce5e";
+    const CHROME150_AKAMAI_HASH: &str = "52d84b11737d980aef856699f885ca86";
+    const CHROME150_AKAMAI_TEXT: &str = "1:65536;2:0;4:6291456;6:262144|15663105|0|m,a,s,p";
+
+    #[tokio::test]
+    #[cfg(feature = "impersonate")]
+    async fn test_chrome150() {
+        let client = Client::builder()
+            .impersonate_os(crate::imp::ImpersonateOS::Linux)
+            .impersonate(Impersonate::ChromeV150)
+            .build()
+            .unwrap();
+
+        let response = client
+            .get("https://tls.browserleaks.com/json")
+            .send()
+            .await
+            .unwrap();
+
+        let json: BrowserLeaksResponse = response.json().await.unwrap();
+
+        assert_eq!(json.user_agent, CHROME150_USER_AGENT);
+        assert_eq!(json.ja4, CHROME150_JA4);
+        assert_eq!(json.akamai_hash, CHROME150_AKAMAI_HASH);
+        assert_eq!(json.akamai_text, CHROME150_AKAMAI_TEXT);
     }
 }

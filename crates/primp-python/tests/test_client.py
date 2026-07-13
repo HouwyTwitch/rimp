@@ -160,10 +160,8 @@ class TestClientInit:
 class TestClientProperties:
     """Tests for Client property getters."""
     
-    def test_client_headers_getter(self, test_server: str) -> None:
+    def test_client_headers_getter(self) -> None:
         """Test headers property getter."""
-        base_url = test_server
-        
         client = primp.Client(headers={"X-Test": "value"})
         headers = client.headers
         
@@ -507,10 +505,8 @@ class TestAsyncClientProperties:
     """Tests for AsyncClient property getters."""
     
     @pytest.mark.asyncio
-    async def test_asyncclient_headers_getter(self, test_server: str) -> None:
+    async def test_asyncclient_headers_getter(self) -> None:
         """Test headers property getter."""
-        base_url = test_server
-        
         client = primp.AsyncClient(headers={"X-Test": "value"})
         headers = client.headers
         

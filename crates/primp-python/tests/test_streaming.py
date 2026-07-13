@@ -627,9 +627,11 @@ class TestSyncResponseStreaming:
         base_url = test_server
         client = primp.Client()
 
-        with client.get(f"{base_url}/status/404", stream=True) as response:
-            with pytest.raises(Exception):
-                response.raise_for_status()
+        with (
+            client.get(f"{base_url}/status/404", stream=True) as response,
+            pytest.raises(primp.StatusError),
+        ):
+            response.raise_for_status()
 
 
 class TestAsyncResponseStreaming:
@@ -726,5 +728,5 @@ class TestAsyncResponseStreaming:
         client = primp.AsyncClient()
 
         async with await client.get(f"{base_url}/status/404", stream=True) as response:
-            with pytest.raises(Exception):
+            with pytest.raises(primp.StatusError):
                 response.raise_for_status()

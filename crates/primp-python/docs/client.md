@@ -34,7 +34,7 @@ primp.Client(
 
 | Browser | Versions |
 |---------|----------|
-| Chrome | `chrome_144`, `chrome_145`, `chrome_146`, `chrome` |
+| Chrome | `chrome_144`, `chrome_145`, `chrome_146`, `chrome_147`, `chrome_148`, `chrome_150`, `chrome` |
 | Safari | `safari_18.5`, `safari_26`, `safari_26.3`, `safari` |
 | Edge | `edge_144`, `edge_145`, `edge_146`, `edge` |
 | Firefox | `firefox_140`, `firefox_146`, `firefox_147`, `firefox_148`, `firefox` |
