@@ -220,7 +220,15 @@ fn chrome_emulator(chrome: Impersonate) -> Arc<BrowserEmulator> {
 fn new_chrome_emulator(major: u16) -> BrowserEmulator {
     let mut emulator = BrowserEmulator::new(BrowserType::Chrome, BrowserVersion::new(major, 0, 0));
     emulator.cipher_suites = Some(emulation::cipher_suites::CHROME.to_vec());
-    emulator.signature_algorithms = Some(emulation::signature_algorithms::CHROME.to_vec());
+    // Chrome 150 added the ML-DSA post-quantum signature algorithms, changing the
+    // JA4 hash to t13d1514h2_8daaf6152771_d85c08a3ce5e. Earlier versions keep the
+    // classic 8-algorithm list.
+    let signature_algorithms = if major >= 150 {
+        emulation::signature_algorithms::CHROME_150
+    } else {
+        emulation::signature_algorithms::CHROME
+    };
+    emulator.signature_algorithms = Some(signature_algorithms.to_vec());
     emulator.named_groups = Some(emulation::named_groups::CHROME.to_vec());
     emulator.extension_order_seed = Some(emulation::extension_order::CHROME);
     emulator
@@ -310,5 +318,37 @@ mod tests {
         assert_eq!(json.ja4, CHROME146_JA4);
         assert_eq!(json.akamai_hash, CHROME146_AKAMAI_HASH);
         assert_eq!(json.akamai_text, CHROME146_AKAMAI_TEXT);
+    }
+
+    const CHROME150_USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36";
+    // Chrome 150 adds the ML-DSA signature algorithms, so only the JA4_c extension
+    // hash changes versus Chrome 146; the ciphers and HTTP/2 fingerprint are unchanged.
+    // browserleaks counts SNI + ALPN in the extension total (t13d1516h2); tools that
+    // omit them (e.g. tls.peet.ws) report the same hashes as t13d1514h2.
+    const CHROME150_JA4: &str = "t13d1516h2_8daaf6152771_d85c08a3ce5e";
+    const CHROME150_AKAMAI_HASH: &str = "52d84b11737d980aef856699f885ca86";
+    const CHROME150_AKAMAI_TEXT: &str = "1:65536;2:0;4:6291456;6:262144|15663105|0|m,a,s,p";
+
+    #[tokio::test]
+    #[cfg(feature = "impersonate")]
+    async fn test_chrome150() {
+        let client = Client::builder()
+            .impersonate_os(crate::imp::ImpersonateOS::Linux)
+            .impersonate(Impersonate::ChromeV150)
+            .build()
+            .unwrap();
+
+        let response = client
+            .get("https://tls.browserleaks.com/json")
+            .send()
+            .await
+            .unwrap();
+
+        let json: BrowserLeaksResponse = response.json().await.unwrap();
+
+        assert_eq!(json.user_agent, CHROME150_USER_AGENT);
+        assert_eq!(json.ja4, CHROME150_JA4);
+        assert_eq!(json.akamai_hash, CHROME150_AKAMAI_HASH);
+        assert_eq!(json.akamai_text, CHROME150_AKAMAI_TEXT);
     }
 }

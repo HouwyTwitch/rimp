@@ -52,6 +52,27 @@ def test_client_impersonate_chrome144():
 
 @pytest.mark.internet
 @retry()
+def test_client_impersonate_chrome150():
+    client = primp.Client(
+        impersonate="chrome_150",
+        impersonate_os="windows",
+    )
+    response = client.get("https://tls.browserleaks.com/json")
+    assert response.status_code == 200
+    json_data = response.json()
+    assert (
+        json_data["user_agent"]
+        == "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36"
+    )
+    # Chrome 150 adds the ML-DSA signature algorithms; only JA4_c changes vs chrome_146.
+    # browserleaks counts SNI + ALPN in the extension total (t13d1516h2); tls.peet.ws
+    # omits them and reports the same hashes as t13d1514h2.
+    assert json_data["ja4"] == "t13d1516h2_8daaf6152771_d85c08a3ce5e"
+    assert json_data["akamai_hash"] == "52d84b11737d980aef856699f885ca86"
+
+
+@pytest.mark.internet
+@retry()
 def test_get_impersonate_safari18_5():
     response = primp.get(
         #"https://tls.peet.ws/api/all",

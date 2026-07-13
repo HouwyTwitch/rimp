@@ -142,6 +142,26 @@ pub mod signature_algorithms {
         SignatureScheme::RSA_PKCS1_SHA512,
     ];
 
+    /// Chrome 150+ signature algorithm list (11 algorithms).
+    ///
+    /// Chrome 150 adds the ML-DSA post-quantum signature schemes (0x0904-0x0906).
+    /// The wire order is ascending so the emitted `signature_algorithms` extension
+    /// reproduces JA4 `t13d1514h2_8daaf6152771_d85c08a3ce5e` regardless of whether
+    /// the fingerprinting tool sorts the algorithm list before hashing.
+    pub const CHROME_150: &[SignatureScheme] = &[
+        SignatureScheme::RSA_PKCS1_SHA256,      // 0x0401
+        SignatureScheme::ECDSA_NISTP256_SHA256, // 0x0403
+        SignatureScheme::RSA_PKCS1_SHA384,      // 0x0501
+        SignatureScheme::ECDSA_NISTP384_SHA384, // 0x0503
+        SignatureScheme::RSA_PKCS1_SHA512,      // 0x0601
+        SignatureScheme::RSA_PSS_SHA256,        // 0x0804
+        SignatureScheme::RSA_PSS_SHA384,        // 0x0805
+        SignatureScheme::RSA_PSS_SHA512,        // 0x0806
+        SignatureScheme::ML_DSA_44,             // 0x0904
+        SignatureScheme::ML_DSA_65,             // 0x0905
+        SignatureScheme::ML_DSA_87,             // 0x0906
+    ];
+
     /// Safari's default signature algorithm list (11 algorithms including sha1)
     pub const SAFARI: &[SignatureScheme] = &[
         SignatureScheme::ECDSA_NISTP256_SHA256,
