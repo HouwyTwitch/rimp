@@ -12,7 +12,6 @@ import pytest
 
 import primp
 
-
 # All HTTP methods to test
 ALL_METHODS = ["get", "head", "options", "delete", "post", "put", "patch"]
 METHODS_TRADITIONALLY_WITH_BODY = ["post", "put", "patch"]

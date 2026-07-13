@@ -121,6 +121,14 @@ fn build_user_agent(chrome: Impersonate, os: crate::imp::ImpersonateOS) -> &'sta
             crate::imp::ImpersonateOS::IOS => "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/148.0.0.0 Mobile/15E148 Safari/604.1",
             _ => unreachable!(),
         },
+        Impersonate::ChromeV150 => match os {
+            crate::imp::ImpersonateOS::Windows => "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36",
+            crate::imp::ImpersonateOS::MacOS => "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36",
+            crate::imp::ImpersonateOS::Linux => "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36",
+            crate::imp::ImpersonateOS::Android => "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36",
+            crate::imp::ImpersonateOS::IOS => "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/150.0.0.0 Mobile/15E148 Safari/604.1",
+            _ => unreachable!(),
+        },
         _ => unreachable!(),
     }
 }
@@ -143,6 +151,9 @@ fn build_sec_ch_ua(chrome: Impersonate, _os: crate::imp::ImpersonateOS) -> &'sta
         Impersonate::ChromeV148 => {
             r#""Chromium";v="148", "Google Chrome";v="148", "Not/A)Brand";v="99""#
         }
+        Impersonate::ChromeV150 => {
+            r#""Google Chrome";v="150", "Chromium";v="150", "Not?A_Brand";v="24""#
+        }
         _ => unreachable!(),
     }
 }
@@ -150,8 +161,8 @@ fn build_sec_ch_ua(chrome: Impersonate, _os: crate::imp::ImpersonateOS) -> &'sta
 /// Builds HTTP/2 settings for a Chrome version.
 #[cfg(feature = "http2")]
 fn build_http2_settings(chrome: Impersonate) -> crate::imp::Http2Data {
-    // Chrome 148 uses different header order (sec-ch-ua after sec-fetch-*)
-    let headers_order = if matches!(chrome, Impersonate::ChromeV148) {
+    // Chrome 148+ uses a different header order (sec-ch-ua after sec-fetch-*)
+    let headers_order = if matches!(chrome, Impersonate::ChromeV148 | Impersonate::ChromeV150) {
         Some(crate::imp::header_order_upgrade_first_sec_chua_last().clone())
     } else {
         Some(crate::imp::header_order_sec_chua_first().clone())
@@ -195,6 +206,11 @@ fn chrome_emulator(chrome: Impersonate) -> Arc<BrowserEmulator> {
         Impersonate::ChromeV148 => {
             static EMU: OnceLock<Arc<BrowserEmulator>> = OnceLock::new();
             EMU.get_or_init(|| Arc::new(new_chrome_emulator(148)))
+                .clone()
+        }
+        Impersonate::ChromeV150 => {
+            static EMU: OnceLock<Arc<BrowserEmulator>> = OnceLock::new();
+            EMU.get_or_init(|| Arc::new(new_chrome_emulator(150)))
                 .clone()
         }
         _ => unreachable!(),

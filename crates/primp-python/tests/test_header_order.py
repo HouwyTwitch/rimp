@@ -1,31 +1,25 @@
+"""Tests that header ordering is preserved on the client and response."""
+
 import primp
 
 
-# Test 1: Verify headers order is preserved
-client = primp.Client(headers={
-    "X-Third": "3",
-    "X-First": "1",
-    "X-Second": "2"
-})
-headers = client.headers
-# Headers should maintain insertion order (custom headers after any defaults)
-header_keys = list(headers.keys())
-# Find the indices of our custom headers
-x_third_idx = header_keys.index("x-third")
-x_first_idx = header_keys.index("x-first")
-x_second_idx = header_keys.index("x-second")
-# Verify they appear in the order we specified them
-assert x_third_idx < x_first_idx < x_second_idx, f"Header order not preserved: {header_keys}"
-print("Test 1 passed: Header insertion order preserved")
+def test_client_header_insertion_order_preserved() -> None:
+    """Custom headers keep the insertion order they were supplied in."""
+    client = primp.Client(headers={"X-Third": "3", "X-First": "1", "X-Second": "2"})
 
-# Test 2: Verify response headers order
-response = client.get("https://httpbin.org/get")
-response_headers = response.headers
-# Response headers should maintain HTTP response order
-assert isinstance(response_headers, dict)
-# Verify order is consistent across multiple accesses
-header_keys = list(response_headers.keys())
-assert header_keys == list(response_headers.keys()), "Response header order not consistent"
-print("Test 2 passed: Response headers order preserved")
+    header_keys = list(client.headers.keys())
+    x_third_idx = header_keys.index("x-third")
+    x_first_idx = header_keys.index("x-first")
+    x_second_idx = header_keys.index("x-second")
 
-print("All header order tests passed!")
+    assert x_third_idx < x_first_idx < x_second_idx, f"Header order not preserved: {header_keys}"
+
+
+def test_response_header_order_is_stable(test_server: str) -> None:
+    """Response headers expose a stable, repeatable order across accesses."""
+    client = primp.Client()
+    response = client.get(f"{test_server}/get")
+
+    response_headers = response.headers
+    assert isinstance(response_headers, dict)
+    assert list(response_headers.keys()) == list(response_headers.keys())

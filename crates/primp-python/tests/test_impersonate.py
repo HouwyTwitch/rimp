@@ -8,6 +8,7 @@ functionality. They require an active internet connection.
 from time import sleep
 
 import pytest
+
 import primp
 
 

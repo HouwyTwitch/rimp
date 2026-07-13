@@ -211,6 +211,7 @@ pub enum Impersonate {
     ChromeV146,
     ChromeV147,
     ChromeV148,
+    ChromeV150,
     /// Random Chrome version
     Chrome,
     // Edge variants
@@ -284,6 +285,7 @@ pub fn random_impersonate() -> Impersonate {
         Impersonate::ChromeV146,
         Impersonate::ChromeV147,
         Impersonate::ChromeV148,
+        Impersonate::ChromeV150,
         Impersonate::EdgeV144,
         Impersonate::EdgeV145,
         Impersonate::EdgeV146,
@@ -318,6 +320,7 @@ pub fn resolve_impersonate(version: Impersonate) -> Impersonate {
                 Impersonate::ChromeV146,
                 Impersonate::ChromeV147,
                 Impersonate::ChromeV148,
+                Impersonate::ChromeV150,
             ];
             *CHROME.choose(&mut rand::rng()).unwrap()
         }
@@ -488,7 +491,8 @@ pub fn get_browser_settings(
         | Impersonate::ChromeV145
         | Impersonate::ChromeV146
         | Impersonate::ChromeV147
-        | Impersonate::ChromeV148 => chrome::build_chrome_settings(version, os_type),
+        | Impersonate::ChromeV148
+        | Impersonate::ChromeV150 => chrome::build_chrome_settings(version, os_type),
         Impersonate::EdgeV144
         | Impersonate::EdgeV145
         | Impersonate::EdgeV146

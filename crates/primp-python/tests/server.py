@@ -14,11 +14,12 @@ import re
 import socket
 import threading
 import time
-from contextlib import contextmanager
+from collections.abc import Generator
+from contextlib import contextmanager, suppress
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from queue import Queue
 from socketserver import ThreadingMixIn
-from typing import Any, Generator
+from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 import pytest
@@ -35,10 +36,8 @@ class HttpbinRequestHandler(BaseHTTPRequestHandler):
     
     def handle(self) -> None:
         """Override to suppress ConnectionResetError from client disconnects."""
-        try:
+        with suppress(ConnectionResetError, BrokenPipeError, OSError):
             super().handle()
-        except (ConnectionResetError, BrokenPipeError, OSError):
-            pass
     
     def _build_response_dict(self, method: str, body: bytes = b"") -> dict[str, Any]:
         """Build a response dictionary with request details."""
@@ -141,9 +140,14 @@ class HttpbinRequestHandler(BaseHTTPRequestHandler):
                     content = content.rstrip(b"\r\n")
                     
                     if filename_match:
+                        content_type_value = (
+                            content_type_match.group(1).strip()
+                            if content_type_match
+                            else "application/octet-stream"
+                        )
                         files_data[name] = {
                             "filename": filename_match.group(1),
-                            "content_type": content_type_match.group(1).strip() if content_type_match else "application/octet-stream",
+                            "content_type": content_type_value,
                             "size": len(content),
                         }
                     else:
@@ -158,10 +162,8 @@ class HttpbinRequestHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(response_body)))
         self.end_headers()
-        try:
+        with suppress(BrokenPipeError, ConnectionResetError, OSError):
             self.wfile.write(response_body)
-        except (BrokenPipeError, ConnectionResetError, OSError):
-            pass
     
     def _send_html_response(self, html: str, status: int = 200) -> None:
         """Send an HTML response."""
@@ -170,10 +172,8 @@ class HttpbinRequestHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Content-Length", str(len(response_body)))
         self.end_headers()
-        try:
+        with suppress(BrokenPipeError, ConnectionResetError, OSError):
             self.wfile.write(response_body)
-        except (BrokenPipeError, ConnectionResetError, OSError):
-            pass
     
     def _read_body(self) -> bytes:
         """Read the request body."""
@@ -326,10 +326,8 @@ class HttpbinRequestHandler(BaseHTTPRequestHandler):
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(response_body)))
             self.end_headers()
-            try:
+            with suppress(BrokenPipeError, ConnectionResetError, OSError):
                 self.wfile.write(response_body)
-            except (BrokenPipeError, ConnectionResetError, OSError):
-                pass
         else:
             self.send_response(404)
             self.send_header("Content-Length", "0")
@@ -486,10 +484,8 @@ class HttpbinRequestHandler(BaseHTTPRequestHandler):
             self.send_header("Set-Cookie", f"{name}={values[0]}")
 
         self.end_headers()
-        try:
+        with suppress(BrokenPipeError, ConnectionResetError, OSError):
             self.wfile.write(response_body)
-        except (BrokenPipeError, ConnectionResetError, OSError):
-            pass
     
     def _handle_redirect(self, path: str) -> None:
         """Handle /redirect/<n> endpoint."""
@@ -519,10 +515,8 @@ class HttpbinRequestHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Encoding", "gzip")
         self.send_header("Content-Length", str(len(gzipped_data)))
         self.end_headers()
-        try:
+        with suppress(BrokenPipeError, ConnectionResetError, OSError):
             self.wfile.write(gzipped_data)
-        except (BrokenPipeError, ConnectionResetError, OSError):
-            pass
 
     def _handle_invalid_gzip(self) -> None:
         """Handle /invalid-gzip endpoint - returns invalid gzip data."""
@@ -534,10 +528,8 @@ class HttpbinRequestHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Encoding", "gzip")
         self.send_header("Content-Length", str(len(invalid_gzip_data)))
         self.end_headers()
-        try:
+        with suppress(BrokenPipeError, ConnectionResetError, OSError):
             self.wfile.write(invalid_gzip_data)
-        except (BrokenPipeError, ConnectionResetError, OSError):
-            pass
 
     def _handle_invalid_deflate(self) -> None:
         """Handle /invalid-deflate endpoint - returns invalid deflate data."""
@@ -549,10 +541,8 @@ class HttpbinRequestHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Encoding", "deflate")
         self.send_header("Content-Length", str(len(invalid_deflate_data)))
         self.end_headers()
-        try:
+        with suppress(BrokenPipeError, ConnectionResetError, OSError):
             self.wfile.write(invalid_deflate_data)
-        except (BrokenPipeError, ConnectionResetError, OSError):
-            pass
 
     def _handle_broken_chunked(self) -> None:
         """Handle /broken-chunked endpoint - sends incomplete chunked response."""
@@ -599,10 +589,8 @@ class HttpbinRequestHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/xml")
         self.send_header("Content-Length", str(len(response_body)))
         self.end_headers()
-        try:
+        with suppress(BrokenPipeError, ConnectionResetError, OSError):
             self.wfile.write(response_body)
-        except (BrokenPipeError, ConnectionResetError, OSError):
-            pass
 
     def _handle_upgrade(self) -> None:
         """Handle /upgrade endpoint - sends 101 Switching Protocols but fails the upgrade.
@@ -649,7 +637,13 @@ class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
 class ServerThread(threading.Thread):
     """Thread that runs the HTTP server."""
     
-    def __init__(self, port: int = 8080, host: str = "127.0.0.1", ready_event: threading.Event | None = None, port_queue: Queue[int] | None = None):
+    def __init__(
+        self,
+        port: int = 8080,
+        host: str = "127.0.0.1",
+        ready_event: threading.Event | None = None,
+        port_queue: Queue[int] | None = None,
+    ):
         super().__init__(daemon=True)
         self.port = port
         self.host = host
@@ -690,7 +684,11 @@ class ServerThread(threading.Thread):
 
 
 @contextmanager
-def run_server(port: int = 8080, host: str = "127.0.0.1", ready_event: threading.Event | None = None) -> Generator[str, None, None]:
+def run_server(
+    port: int = 8080,
+    host: str = "127.0.0.1",
+    ready_event: threading.Event | None = None,
+) -> Generator[str, None, None]:
     """Context manager to run the test server."""
     port_queue: Queue[int] = Queue()
     server_thread = ServerThread(port, host, ready_event, port_queue)
@@ -700,8 +698,8 @@ def run_server(port: int = 8080, host: str = "127.0.0.1", ready_event: threading
 
     try:
         actual_port = port_queue.get(timeout=60.0)
-    except Exception:
-        raise RuntimeError(f"Failed to get server port. Thread alive: {server_thread.is_alive()}")
+    except Exception as err:
+        raise RuntimeError(f"Failed to get server port. Thread alive: {server_thread.is_alive()}") from err
     
     if ready_event:
         ready_event.wait(timeout=60.0)

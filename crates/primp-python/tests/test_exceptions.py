@@ -8,15 +8,15 @@ import pytest
 
 import primp
 from primp import (
-    PrimpError,
-    BuilderError,
-    RequestError,
-    ConnectError,
-    TimeoutError,
-    StatusError,
-    RedirectError,
     BodyError,
+    BuilderError,
+    ConnectError,
     DecodeError,
+    PrimpError,
+    RedirectError,
+    RequestError,
+    StatusError,
+    TimeoutError,
     UpgradeError,
 )
 

@@ -430,7 +430,7 @@ class TestResponseRaiseForStatus:
         
         assert response.status_code == 404
         
-        with pytest.raises(Exception):
+        with pytest.raises(primp.StatusError):
             response.raise_for_status()
     
     @pytest.mark.asyncio
@@ -443,7 +443,7 @@ class TestResponseRaiseForStatus:
         
         assert response.status_code == 404
         
-        with pytest.raises(Exception):
+        with pytest.raises(primp.StatusError):
             response.raise_for_status()
     
     def test_sync_client_raise_for_status_500(self, test_server: str) -> None:
@@ -455,7 +455,7 @@ class TestResponseRaiseForStatus:
         
         assert response.status_code == 500
         
-        with pytest.raises(Exception):
+        with pytest.raises(primp.StatusError):
             response.raise_for_status()
     
     @pytest.mark.asyncio
@@ -468,7 +468,7 @@ class TestResponseRaiseForStatus:
         
         assert response.status_code == 500
         
-        with pytest.raises(Exception):
+        with pytest.raises(primp.StatusError):
             response.raise_for_status()
 
 

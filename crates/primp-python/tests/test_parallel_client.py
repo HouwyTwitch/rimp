@@ -1,8 +1,8 @@
 """Regression test for a first-call deadlock on parallel Client construction."""
 
-from concurrent.futures import ThreadPoolExecutor
-import threading
 import asyncio
+import threading
+from concurrent.futures import ThreadPoolExecutor
 
 import primp
 

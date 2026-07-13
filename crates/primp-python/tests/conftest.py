@@ -11,9 +11,9 @@ This module provides common fixtures used across all test modules:
 """
 
 import pytest
+
 import primp
 from tests.server import test_server, test_server_dynamic_port
-
 
 __all__ = [
     "sync_client",
