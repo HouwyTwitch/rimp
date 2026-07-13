@@ -319,11 +319,19 @@ jobs:
         uses: actions/attest@v4
         with:
           subject-path: 'wheels-*/*'
+      - name: Publish wheels to GitHub Release
+        if: ${{ startsWith(github.ref, 'refs/tags/') }}
+        uses: softprops/action-gh-release@v2
+        with:
+          files: wheels-*/*
+          fail_on_unmatched_files: true
       - name: Install uv
         if: ${{ startsWith(github.ref, 'refs/tags/') }}
         uses: astral-sh/setup-uv@v7
       - name: Publish to PyPI
-        if: ${{ startsWith(github.ref, 'refs/tags/') }}
+        # Only runs when a PYPI_API_TOKEN secret is configured; forks that only
+        # distribute via GitHub Releases can leave it unset without failing the run.
+        if: ${{ startsWith(github.ref, 'refs/tags/') && env.UV_PUBLISH_TOKEN != '' }}
         run: uv publish 'wheels-*/*'
         env:
           UV_PUBLISH_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
