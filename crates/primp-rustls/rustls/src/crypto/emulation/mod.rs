@@ -162,6 +162,27 @@ pub mod signature_algorithms {
         SignatureScheme::ML_DSA_87,             // 0x0906
     ];
 
+    /// Chrome 150 signature algorithm list matching real Chrome 150 wire order
+    /// as observed on tls.peet.ws (11 algorithms).
+    ///
+    /// The ML-DSA post-quantum schemes lead the list, followed by the classic
+    /// ECDSA/RSA pairs. Wire order: `0904,0905,0906,0403,0804,0401,0503,0805,0501,0806,0601`.
+    /// Produces peetprint hash `35fc5e864929e3b01e9ba9eb41bc1360` and JA4
+    /// `t13d1516h2_8daaf6152771_a87ad97598a9`.
+    pub const CHROME_150_WIRE: &[SignatureScheme] = &[
+        SignatureScheme::ML_DSA_44,             // 0x0904
+        SignatureScheme::ML_DSA_65,             // 0x0905
+        SignatureScheme::ML_DSA_87,             // 0x0906
+        SignatureScheme::ECDSA_NISTP256_SHA256, // 0x0403
+        SignatureScheme::RSA_PSS_SHA256,        // 0x0804
+        SignatureScheme::RSA_PKCS1_SHA256,      // 0x0401
+        SignatureScheme::ECDSA_NISTP384_SHA384, // 0x0503
+        SignatureScheme::RSA_PSS_SHA384,        // 0x0805
+        SignatureScheme::RSA_PKCS1_SHA384,      // 0x0501
+        SignatureScheme::RSA_PSS_SHA512,        // 0x0806
+        SignatureScheme::RSA_PKCS1_SHA512,      // 0x0601
+    ];
+
     /// Safari's default signature algorithm list (11 algorithms including sha1)
     pub const SAFARI: &[SignatureScheme] = &[
         SignatureScheme::ECDSA_NISTP256_SHA256,

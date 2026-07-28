@@ -212,6 +212,9 @@ pub enum Impersonate {
     ChromeV147,
     ChromeV148,
     ChromeV150,
+    /// Chrome 150 variant matching the tls.peet.ws fingerprint
+    /// (ML-DSA-first signature algorithm wire order, sec-ch-ua-first HTTP/2 header order).
+    ChromeV150_0_7871_187,
     /// Random Chrome version
     Chrome,
     // Edge variants
@@ -286,6 +289,7 @@ pub fn random_impersonate() -> Impersonate {
         Impersonate::ChromeV147,
         Impersonate::ChromeV148,
         Impersonate::ChromeV150,
+        Impersonate::ChromeV150_0_7871_187,
         Impersonate::EdgeV144,
         Impersonate::EdgeV145,
         Impersonate::EdgeV146,
@@ -321,6 +325,7 @@ pub fn resolve_impersonate(version: Impersonate) -> Impersonate {
                 Impersonate::ChromeV147,
                 Impersonate::ChromeV148,
                 Impersonate::ChromeV150,
+                Impersonate::ChromeV150_0_7871_187,
             ];
             *CHROME.choose(&mut rand::rng()).unwrap()
         }
@@ -492,7 +497,8 @@ pub fn get_browser_settings(
         | Impersonate::ChromeV146
         | Impersonate::ChromeV147
         | Impersonate::ChromeV148
-        | Impersonate::ChromeV150 => chrome::build_chrome_settings(version, os_type),
+        | Impersonate::ChromeV150
+        | Impersonate::ChromeV150_0_7871_187 => chrome::build_chrome_settings(version, os_type),
         Impersonate::EdgeV144
         | Impersonate::EdgeV145
         | Impersonate::EdgeV146

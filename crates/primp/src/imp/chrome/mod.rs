@@ -121,7 +121,7 @@ fn build_user_agent(chrome: Impersonate, os: crate::imp::ImpersonateOS) -> &'sta
             crate::imp::ImpersonateOS::IOS => "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/148.0.0.0 Mobile/15E148 Safari/604.1",
             _ => unreachable!(),
         },
-        Impersonate::ChromeV150 => match os {
+        Impersonate::ChromeV150 | Impersonate::ChromeV150_0_7871_187 => match os {
             crate::imp::ImpersonateOS::Windows => "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36",
             crate::imp::ImpersonateOS::MacOS => "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36",
             crate::imp::ImpersonateOS::Linux => "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36",
@@ -151,7 +151,7 @@ fn build_sec_ch_ua(chrome: Impersonate, _os: crate::imp::ImpersonateOS) -> &'sta
         Impersonate::ChromeV148 => {
             r#""Chromium";v="148", "Google Chrome";v="148", "Not/A)Brand";v="99""#
         }
-        Impersonate::ChromeV150 => {
+        Impersonate::ChromeV150 | Impersonate::ChromeV150_0_7871_187 => {
             r#""Google Chrome";v="150", "Chromium";v="150", "Not?A_Brand";v="24""#
         }
         _ => unreachable!(),
@@ -161,7 +161,9 @@ fn build_sec_ch_ua(chrome: Impersonate, _os: crate::imp::ImpersonateOS) -> &'sta
 /// Builds HTTP/2 settings for a Chrome version.
 #[cfg(feature = "http2")]
 fn build_http2_settings(chrome: Impersonate) -> crate::imp::Http2Data {
-    // Chrome 148+ uses a different header order (sec-ch-ua after sec-fetch-*)
+    // Chrome 148/150 use a header order with sec-ch-ua after sec-fetch-*.
+    // The alternate Chrome 150_2 variant (matching tls.peet.ws) keeps the older
+    // sec-ch-ua-first order.
     let headers_order = if matches!(chrome, Impersonate::ChromeV148 | Impersonate::ChromeV150) {
         Some(crate::imp::header_order_upgrade_first_sec_chua_last().clone())
     } else {
@@ -185,48 +187,61 @@ fn chrome_emulator(chrome: Impersonate) -> Arc<BrowserEmulator> {
     match chrome {
         Impersonate::ChromeV144 => {
             static EMU: OnceLock<Arc<BrowserEmulator>> = OnceLock::new();
-            EMU.get_or_init(|| Arc::new(new_chrome_emulator(144)))
+            EMU.get_or_init(|| Arc::new(new_chrome_emulator(144, ChromeSigAlgs::Classic)))
                 .clone()
         }
         Impersonate::ChromeV145 => {
             static EMU: OnceLock<Arc<BrowserEmulator>> = OnceLock::new();
-            EMU.get_or_init(|| Arc::new(new_chrome_emulator(145)))
+            EMU.get_or_init(|| Arc::new(new_chrome_emulator(145, ChromeSigAlgs::Classic)))
                 .clone()
         }
         Impersonate::ChromeV146 => {
             static EMU: OnceLock<Arc<BrowserEmulator>> = OnceLock::new();
-            EMU.get_or_init(|| Arc::new(new_chrome_emulator(146)))
+            EMU.get_or_init(|| Arc::new(new_chrome_emulator(146, ChromeSigAlgs::Classic)))
                 .clone()
         }
         Impersonate::ChromeV147 => {
             static EMU: OnceLock<Arc<BrowserEmulator>> = OnceLock::new();
-            EMU.get_or_init(|| Arc::new(new_chrome_emulator(147)))
+            EMU.get_or_init(|| Arc::new(new_chrome_emulator(147, ChromeSigAlgs::Classic)))
                 .clone()
         }
         Impersonate::ChromeV148 => {
             static EMU: OnceLock<Arc<BrowserEmulator>> = OnceLock::new();
-            EMU.get_or_init(|| Arc::new(new_chrome_emulator(148)))
+            EMU.get_or_init(|| Arc::new(new_chrome_emulator(148, ChromeSigAlgs::Classic)))
                 .clone()
         }
         Impersonate::ChromeV150 => {
             static EMU: OnceLock<Arc<BrowserEmulator>> = OnceLock::new();
-            EMU.get_or_init(|| Arc::new(new_chrome_emulator(150)))
+            EMU.get_or_init(|| Arc::new(new_chrome_emulator(150, ChromeSigAlgs::V150Sorted)))
+                .clone()
+        }
+        Impersonate::ChromeV150_0_7871_187 => {
+            static EMU: OnceLock<Arc<BrowserEmulator>> = OnceLock::new();
+            EMU.get_or_init(|| Arc::new(new_chrome_emulator(150, ChromeSigAlgs::V150Wire)))
                 .clone()
         }
         _ => unreachable!(),
     }
 }
 
-fn new_chrome_emulator(major: u16) -> BrowserEmulator {
+/// Signature-algorithm profile selection for the Chrome emulator.
+#[derive(Clone, Copy)]
+enum ChromeSigAlgs {
+    /// Classic 8-algorithm list used by Chrome <150.
+    Classic,
+    /// Chrome 150+ list sorted ascending (matches JA4 regardless of tool sorting).
+    V150Sorted,
+    /// Chrome 150 real wire order (ML-DSA first) as observed on tls.peet.ws.
+    V150Wire,
+}
+
+fn new_chrome_emulator(major: u16, sig_algs: ChromeSigAlgs) -> BrowserEmulator {
     let mut emulator = BrowserEmulator::new(BrowserType::Chrome, BrowserVersion::new(major, 0, 0));
     emulator.cipher_suites = Some(emulation::cipher_suites::CHROME.to_vec());
-    // Chrome 150 added the ML-DSA post-quantum signature algorithms, changing the
-    // JA4 hash to t13d1514h2_8daaf6152771_d85c08a3ce5e. Earlier versions keep the
-    // classic 8-algorithm list.
-    let signature_algorithms = if major >= 150 {
-        emulation::signature_algorithms::CHROME_150
-    } else {
-        emulation::signature_algorithms::CHROME
+    let signature_algorithms = match sig_algs {
+        ChromeSigAlgs::Classic => emulation::signature_algorithms::CHROME,
+        ChromeSigAlgs::V150Sorted => emulation::signature_algorithms::CHROME_150,
+        ChromeSigAlgs::V150Wire => emulation::signature_algorithms::CHROME_150_WIRE,
     };
     emulator.signature_algorithms = Some(signature_algorithms.to_vec());
     emulator.named_groups = Some(emulation::named_groups::CHROME.to_vec());
