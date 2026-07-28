@@ -121,7 +121,7 @@ fn build_user_agent(chrome: Impersonate, os: crate::imp::ImpersonateOS) -> &'sta
             crate::imp::ImpersonateOS::IOS => "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/148.0.0.0 Mobile/15E148 Safari/604.1",
             _ => unreachable!(),
         },
-        Impersonate::ChromeV150 | Impersonate::ChromeV150_2 => match os {
+        Impersonate::ChromeV150 | Impersonate::ChromeV150_0_7871_187 => match os {
             crate::imp::ImpersonateOS::Windows => "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36",
             crate::imp::ImpersonateOS::MacOS => "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36",
             crate::imp::ImpersonateOS::Linux => "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36",
@@ -151,7 +151,7 @@ fn build_sec_ch_ua(chrome: Impersonate, _os: crate::imp::ImpersonateOS) -> &'sta
         Impersonate::ChromeV148 => {
             r#""Chromium";v="148", "Google Chrome";v="148", "Not/A)Brand";v="99""#
         }
-        Impersonate::ChromeV150 | Impersonate::ChromeV150_2 => {
+        Impersonate::ChromeV150 | Impersonate::ChromeV150_0_7871_187 => {
             r#""Google Chrome";v="150", "Chromium";v="150", "Not?A_Brand";v="24""#
         }
         _ => unreachable!(),
@@ -215,7 +215,7 @@ fn chrome_emulator(chrome: Impersonate) -> Arc<BrowserEmulator> {
             EMU.get_or_init(|| Arc::new(new_chrome_emulator(150, ChromeSigAlgs::V150Sorted)))
                 .clone()
         }
-        Impersonate::ChromeV150_2 => {
+        Impersonate::ChromeV150_0_7871_187 => {
             static EMU: OnceLock<Arc<BrowserEmulator>> = OnceLock::new();
             EMU.get_or_init(|| Arc::new(new_chrome_emulator(150, ChromeSigAlgs::V150Wire)))
                 .clone()
