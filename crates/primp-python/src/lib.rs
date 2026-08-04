@@ -157,7 +157,7 @@ impl Client {
     #[new]
     #[pyo3(signature = (auth=None, auth_bearer=None, params=None, headers=None, cookie_store=true,
         referer=true, proxy=None, timeout=None, connect_timeout=None, read_timeout=None,
-        impersonate=None, impersonate_os=None, follow_redirects=true,
+        impersonate=None, impersonate_os=None, impersonate_overrides=None, follow_redirects=true,
         max_redirects=20, verify=true, ca_cert_file=None, https_only=false, http2_only=false,
         dns_resolver=None, base_url=None, cookies=None))]
     fn new(
@@ -174,6 +174,7 @@ impl Client {
         read_timeout: Option<f64>,
         impersonate: Option<String>,
         impersonate_os: Option<String>,
+        impersonate_overrides: Option<pyo3::Bound<'_, pyo3::types::PyDict>>,
         follow_redirects: Option<bool>,
         max_redirects: Option<usize>,
         verify: Option<bool>,
@@ -185,6 +186,12 @@ impl Client {
         cookies: Option<IndexMapSSR>,
     ) -> PrimpResult<Self> {
         let dns_resolvers = parse_dns_resolver(dns_resolver)?;
+        // Parse the overrides dict now (needs GIL) before releasing it.
+        let parsed_overrides = impersonate_overrides
+            .as_ref()
+            .map(crate::impersonate::parse_profile_overrides)
+            .transpose()
+            .map_err(|e| crate::error::PrimpErrorEnum::Custom(e.to_string()))?;
         let (resolved_proxy, client) = py.detach(|| -> PrimpResult<_> {
             let (client_builder, resolved_proxy) = configure_client_builder(
                 PrimpClient::builder(),
@@ -197,6 +204,7 @@ impl Client {
                 read_timeout,
                 impersonate.as_deref(),
                 impersonate_os.as_deref(),
+                parsed_overrides,
                 follow_redirects,
                 max_redirects,
                 verify,
@@ -832,6 +840,7 @@ fn get(
         impersonate_os,
         None,
         None,
+        None,
         verify,
         ca_cert_file,
         None,
@@ -919,6 +928,7 @@ fn head(
         None,
         impersonate,
         impersonate_os,
+        None,
         None,
         None,
         verify,
@@ -1010,6 +1020,7 @@ fn options(
         impersonate_os,
         None,
         None,
+        None,
         verify,
         ca_cert_file,
         None,
@@ -1097,6 +1108,7 @@ fn delete(
         None,
         impersonate,
         impersonate_os,
+        None,
         None,
         None,
         verify,
@@ -1188,6 +1200,7 @@ fn post(
         impersonate_os,
         None,
         None,
+        None,
         verify,
         ca_cert_file,
         None,
@@ -1275,6 +1288,7 @@ fn put(
         None,
         impersonate,
         impersonate_os,
+        None,
         None,
         None,
         verify,
@@ -1366,6 +1380,7 @@ fn patch(
         impersonate_os,
         None,
         None,
+        None,
         verify,
         ca_cert_file,
         None,
@@ -1455,6 +1470,7 @@ fn request(
         None,
         impersonate,
         impersonate_os,
+        None,
         None,
         None,
         verify,

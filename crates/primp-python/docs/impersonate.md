@@ -68,3 +68,111 @@ async def main():
 
 asyncio.run(main())
 ```
+
+## Custom fingerprints via `impersonate_overrides`
+
+If a browser is newer than the built-in profiles, you can layer overrides on
+top of the closest hard-coded profile without waiting for a library release.
+The overrides are applied after the base profile is resolved, so start from
+whatever is closest and only patch what changed.
+
+```python
+import primp
+
+client = primp.Client(
+    impersonate="chrome_150",  # closest built-in base
+    impersonate_overrides={
+        # HTTP-level (peet.ws does not carry these — supply them yourself)
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                       "AppleWebKit/537.36 (KHTML, like Gecko) "
+                       "Chrome/151.0.0.0 Safari/537.36",
+        "sec_ch_ua": '"Google Chrome";v="151", "Chromium";v="151", "Not?A_Brand";v="24"',
+        "sec_ch_ua_platform": '"Windows"',
+        "sec_ch_ua_mobile": "?0",
+        "headers": {"accept-language": "ru,en-US;q=0.9,en;q=0.8"},
+        # HTTP/2 header order (Chrome 148+ moved sec-ch-ua after sec-fetch-*)
+        "headers_order": [
+            "sec-ch-ua", "sec-ch-ua-mobile", "sec-ch-ua-platform",
+            "upgrade-insecure-requests", "user-agent", "accept",
+            "sec-fetch-site", "sec-fetch-mode", "sec-fetch-user", "sec-fetch-dest",
+            "accept-encoding", "accept-language", "priority",
+        ],
+        # TLS: numeric IDs (decimal or "0x…" hex strings)
+        "signature_algorithms": [
+            0x0904, 0x0905, 0x0906, 0x0403, 0x0804, 0x0401,
+            0x0503, 0x0805, 0x0501, 0x0806, 0x0601,
+        ],
+        # HTTP/2 SETTINGS (id, value), in the exact wire order
+        "http2_settings": [(1, 65536), (2, 0), (4, 6291456), (6, 262144)],
+        "http2_pseudo_order": "masp",
+        "http2_headers_priority": (255, 0, True),
+        "http2_initial_connection_window_size": 15663105,
+    },
+)
+```
+
+### Bootstrapping from `tls.peet.ws`
+
+The `/api/clean` endpoint of `https://tls.peet.ws` returns a JSON object with
+compact `peetprint` + `akamai` strings. Pass the response dict directly:
+
+```python
+import primp
+import requests
+
+peet = requests.get("https://tls.peet.ws/api/clean").json()
+
+client = primp.Client(
+    impersonate="chrome_150",
+    impersonate_overrides={
+        "peet_api_response": peet,   # fills TLS ciphers/sig-algs/groups and HTTP/2 SETTINGS
+        # peet.ws does not return HTTP headers or a User-Agent — supply them:
+        "user_agent": "...",
+        "sec_ch_ua": "...",
+        "headers": {"accept-language": "en-US,en;q=0.9"},
+    },
+)
+```
+
+Instead of the whole response, you can pass the individual strings:
+
+```python
+"peetprint": peet["peetprint"],
+"akamai":    peet["akamai"],
+```
+
+### Supported override keys
+
+| Key | Type | Purpose |
+|:----|:-----|:--------|
+| `user_agent` | `str` | Replace the `User-Agent` header |
+| `sec_ch_ua` | `str` | Replace `sec-ch-ua` |
+| `sec_ch_ua_platform` | `str` | Replace `sec-ch-ua-platform` |
+| `sec_ch_ua_mobile` | `str` | Replace `sec-ch-ua-mobile` (`"?0"` / `"?1"`) |
+| `headers` | `dict[str, str]` | Extra headers, inserted/overwritten verbatim |
+| `headers_order` | `list[str]` | Explicit HTTP/2 header order |
+| `cipher_suites` | `list[int \| str]` | TLS cipher suites in wire order; ints or `"0x1301"` strings |
+| `signature_algorithms` | `list[int \| str]` | TLS signature algorithms in wire order |
+| `named_groups` | `list[int \| str]` | TLS named groups in wire order |
+| `extension_order_seed` | `int` | Seed for the rustls extension-order permutation |
+| `http2_settings` | `list[(int, int)]` | HTTP/2 SETTINGS pairs `(id, value)` in wire order |
+| `http2_pseudo_order` | `str \| list[str]` | Pseudo-header order, e.g. `"masp"` or `["m","a","s","p"]` |
+| `http2_headers_priority` | `tuple[int, int, bool] \| None` | `(weight, dep, exclusive)` or `None` to drop the PRIORITY flag |
+| `http2_initial_stream_window_size` | `int` | Overrides SETTINGS_INITIAL_WINDOW_SIZE |
+| `http2_initial_connection_window_size` | `int` | WINDOW_UPDATE increment sent after SETTINGS |
+| `http2_header_table_size` | `int` | Overrides SETTINGS_HEADER_TABLE_SIZE |
+| `http2_max_header_list_size` | `int` | Overrides SETTINGS_MAX_HEADER_LIST_SIZE |
+| `peet_api_response` | `dict` | Full JSON from `tls.peet.ws/api/clean`; convenience for the four fields above |
+| `peetprint`, `akamai` | `str` | The individual strings from `peet_api_response` |
+
+### Known limits
+
+* The `/api/clean` payload does **not** include HTTP headers, `User-Agent`,
+  `sec-ch-ua*`, `Accept*`, cookies, or `headers_order`. Supply those yourself
+  based on the browser you are impersonating.
+* TLS extension **order** is not derived from peetprint — the underlying
+  rustls emulator picks it from `extension_order_seed`. When the base
+  profile is a Chrome variant this yields Chrome's order; other layouts need
+  a manually chosen seed.
+* GREASE markers in peetprint are stripped; rustls injects GREASE where
+  required.
