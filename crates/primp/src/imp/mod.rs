@@ -36,10 +36,15 @@ pub use h2::frame::{
 };
 
 pub mod chrome;
+pub mod custom;
 pub mod edge;
 pub mod firefox;
 pub mod opera;
 pub mod safari;
+
+pub use custom::{
+    chrome_like_base, AkamaiFingerprint, FingerprintParseError, PeetFingerprint, ProfileOverrides,
+};
 
 // HTTP/2 magic numbers grouped by browser family.
 pub(crate) const CHROME_INITIAL_STREAM_WINDOW: u32 = 6291456;

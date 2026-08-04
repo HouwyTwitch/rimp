@@ -22,6 +22,7 @@ use crate::impersonate::{
     get_random_element, parse_impersonate_os_with_fallback, parse_impersonate_with_fallback,
     IMPERSONATEOS_LIST,
 };
+use primp::ProfileOverrides;
 use crate::traits::{HeaderMapExt, HeadersTraits};
 use crate::utils::load_ca_certs;
 
@@ -137,6 +138,7 @@ pub fn configure_client_builder(
     read_timeout: Option<f64>,
     impersonate: Option<&str>,
     impersonate_os: Option<&str>,
+    impersonate_overrides: Option<ProfileOverrides>,
     follow_redirects: Option<bool>,
     max_redirects: Option<usize>,
     verify: Option<bool>,
@@ -159,6 +161,11 @@ pub fn configure_client_builder(
     } else if let Some(os) = impersonate_os {
         let imp_os = parse_impersonate_os_with_fallback(os);
         builder = builder.impersonate_os(imp_os);
+    }
+
+    // Impersonate overrides (applied on top of the base profile above).
+    if let Some(overrides) = impersonate_overrides {
+        builder = builder.impersonate_overrides(overrides);
     }
 
     // Headers

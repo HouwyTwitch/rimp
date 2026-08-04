@@ -25,7 +25,10 @@ pub mod imp;
 
 /// Re-export impersonation types
 #[cfg(not(target_arch = "wasm32"))]
-pub use imp::{BrowserSettings, Http2Data, Impersonate, ImpersonateOS};
+pub use imp::{
+    chrome_like_base, AkamaiFingerprint, BrowserSettings, FingerprintParseError, Http2Data,
+    Impersonate, ImpersonateOS, PeetFingerprint, ProfileOverrides,
+};
 
 /// Re-export h2 frame types used in the public HTTP/2 API
 #[cfg(all(feature = "http2", not(target_arch = "wasm32")))]
@@ -49,6 +52,10 @@ pub struct ClientBuilder {
     os_type: Option<ImpersonateOS>,
     #[cfg(not(target_arch = "wasm32"))]
     root_certs: Vec<reqwest::Certificate>,
+    #[cfg(not(target_arch = "wasm32"))]
+    custom_settings: Option<BrowserSettings>,
+    #[cfg(not(target_arch = "wasm32"))]
+    overrides: Option<ProfileOverrides>,
 }
 
 impl Default for ClientBuilder {
@@ -70,19 +77,35 @@ impl ClientBuilder {
             os_type: None,
             #[cfg(not(target_arch = "wasm32"))]
             root_certs: Vec::new(),
+            #[cfg(not(target_arch = "wasm32"))]
+            custom_settings: None,
+            #[cfg(not(target_arch = "wasm32"))]
+            overrides: None,
         }
     }
 
     /// Returns a `Client` that uses this `ClientBuilder` configuration.
     pub fn build(self) -> crate::Result<Client> {
         #[cfg(not(target_arch = "wasm32"))]
-        let inner = match (self.impersonate, self.os_type) {
-            (None, None) => self.inner.build()?,
-            _ => {
-                let imp = self.impersonate.unwrap_or(Impersonate::Random);
-                let os = self.os_type.unwrap_or(ImpersonateOS::Random);
-                let settings = imp::get_browser_settings(imp, Some(os));
-                apply_impersonation(self.inner, settings, &self.root_certs)?
+        let inner = {
+            let base_settings = match (self.custom_settings, self.impersonate, self.os_type) {
+                (Some(custom), _, _) => Some(custom),
+                (None, None, None) if self.overrides.is_none() => None,
+                (None, imp, os) => {
+                    let imp = imp.unwrap_or(Impersonate::Random);
+                    let os = os.unwrap_or(ImpersonateOS::Random);
+                    Some(imp::get_browser_settings(imp, Some(os)))
+                }
+            };
+
+            match base_settings {
+                None => self.inner.build()?,
+                Some(mut settings) => {
+                    if let Some(ov) = self.overrides {
+                        ov.apply_to(&mut settings);
+                    }
+                    apply_impersonation(self.inner, settings, &self.root_certs)?
+                }
             }
         };
 
@@ -103,6 +126,31 @@ impl ClientBuilder {
     #[cfg(not(target_arch = "wasm32"))]
     pub fn impersonate_os(mut self, os_type: ImpersonateOS) -> Self {
         self.os_type = Some(os_type);
+        self
+    }
+
+    /// Sets a fully hand-built [`BrowserSettings`], replacing the profile
+    /// that would otherwise be derived from `impersonate`/`impersonate_os`.
+    ///
+    /// Use this when you want to configure the TLS/HTTP-2 fingerprint from
+    /// scratch. For only tweaking a subset of a compiled-in profile, prefer
+    /// [`Self::impersonate_overrides`], which is applied on top of the base
+    /// resolved by `impersonate`.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn impersonate_settings(mut self, settings: BrowserSettings) -> Self {
+        self.custom_settings = Some(settings);
+        self
+    }
+
+    /// Selectively override fields (cipher suites, signature algorithms,
+    /// user-agent, HTTP-2 SETTINGS, header order, …) of the resolved base
+    /// profile.
+    ///
+    /// If neither `impersonate` nor `impersonate_settings` was set, a random
+    /// browser profile is used as the base.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn impersonate_overrides(mut self, overrides: ProfileOverrides) -> Self {
+        self.overrides = Some(overrides);
         self
     }
 

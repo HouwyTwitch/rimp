@@ -51,6 +51,41 @@ print(resp.text)
 | Random | `random` |
 
 **OS:** `android`, `ios`, `linux`, `macos`, `windows`, `random`
+
+## Custom fingerprints without a library update
+
+If a new browser build changes the fingerprint, layer overrides on top of the
+closest built-in profile — no library release required.
+
+**Python** — full docs: [`crates/primp-python/docs/impersonate.md`](./crates/primp-python/docs/impersonate.md):
+
+```python
+import primp, requests
+peet = requests.get("https://tls.peet.ws/api/all",
+                    headers={"User-Agent": "…the UA you want to mimic…"}).json()
+
+client = primp.Client(
+    impersonate="chrome_150",           # closest built-in base
+    impersonate_overrides={"peet_api_response": peet},
+    # /api/all also fills user_agent, sec-ch-ua*, headers_order,
+    # http2_headers_priority — you rarely need to set them yourself.
+)
+```
+
+**Rust:**
+
+```rust
+use primp::{Client, Impersonate, ProfileOverrides};
+
+let overrides = ProfileOverrides::from_peet_api(peetprint, akamai)?;
+let client = Client::builder()
+    .impersonate(Impersonate::ChromeV150)
+    .impersonate_overrides(overrides)
+    .build()?;
+```
+
+For a fully hand-built profile, use `.impersonate_settings(BrowserSettings)`.
+
 ____
 ### Disclaimer
 
