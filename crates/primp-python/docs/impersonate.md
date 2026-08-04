@@ -113,32 +113,51 @@ client = primp.Client(
 
 ### Bootstrapping from `tls.peet.ws`
 
-The `/api/clean` endpoint of `https://tls.peet.ws` returns a JSON object with
-compact `peetprint` + `akamai` strings. Pass the response dict directly:
+`https://tls.peet.ws` has two endpoints — pass either response dict directly and
+the format is auto-detected.
+
+**`/api/all` (recommended)** — carries the full request, including
+`User-Agent`, `sec-ch-ua*`, header wire order, and the HEADERS-frame priority
+block. All of that is applied automatically:
 
 ```python
 import primp
 import requests
 
+peet = requests.get("https://tls.peet.ws/api/all",
+                    headers={"User-Agent": "…what you want to mimic…"}).json()
+
+client = primp.Client(
+    impersonate="chrome_150",
+    impersonate_overrides={"peet_api_response": peet},
+    # Auto-filled from the payload: user_agent, sec-ch-ua*, headers_order,
+    # http2_headers_priority, TLS ciphers/sig-algs/groups, HTTP/2 SETTINGS.
+    # Anything you set explicitly still wins.
+)
+```
+
+**`/api/clean`** — compact `peetprint` + `akamai` only (no HTTP-level info).
+Supply headers yourself:
+
+```python
 peet = requests.get("https://tls.peet.ws/api/clean").json()
 
 client = primp.Client(
     impersonate="chrome_150",
     impersonate_overrides={
-        "peet_api_response": peet,   # fills TLS ciphers/sig-algs/groups and HTTP/2 SETTINGS
-        # peet.ws does not return HTTP headers or a User-Agent — supply them:
-        "user_agent": "...",
-        "sec_ch_ua": "...",
+        "peet_api_response": peet,   # TLS/HTTP2 fingerprint only
+        "user_agent": "Mozilla/5.0 … Chrome/151.0.0.0 …",
+        "sec_ch_ua": '"Chromium";v="151", "Google Chrome";v="151", "Not?A_Brand";v="24"',
         "headers": {"accept-language": "en-US,en;q=0.9"},
     },
 )
 ```
 
-Instead of the whole response, you can pass the individual strings:
+Or pass the individual strings directly, without the wrapper dict:
 
 ```python
-"peetprint": peet["peetprint"],
-"akamai":    peet["akamai"],
+"peetprint": peet["peetprint"],   # from /api/clean or /api/all["tls"]
+"akamai":    peet["akamai"],       # from /api/clean or /api/all["http2"]["akamai_fingerprint"]
 ```
 
 ### Supported override keys

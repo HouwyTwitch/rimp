@@ -61,16 +61,14 @@ closest built-in profile — no library release required.
 
 ```python
 import primp, requests
-peet = requests.get("https://tls.peet.ws/api/clean").json()
+peet = requests.get("https://tls.peet.ws/api/all",
+                    headers={"User-Agent": "…the UA you want to mimic…"}).json()
 
 client = primp.Client(
-    impersonate="chrome_150",  # base profile
-    impersonate_overrides={
-        "peet_api_response": peet,  # TLS ciphers/sig-algs/groups + HTTP/2 SETTINGS
-        "user_agent": "Mozilla/5.0 ... Chrome/151.0.0.0 Safari/537.36",
-        "sec_ch_ua": '"Chromium";v="151", "Google Chrome";v="151", "Not?A_Brand";v="24"',
-        "headers": {"accept-language": "ru,en-US;q=0.9"},
-    },
+    impersonate="chrome_150",           # closest built-in base
+    impersonate_overrides={"peet_api_response": peet},
+    # /api/all also fills user_agent, sec-ch-ua*, headers_order,
+    # http2_headers_priority — you rarely need to set them yourself.
 )
 ```
 
